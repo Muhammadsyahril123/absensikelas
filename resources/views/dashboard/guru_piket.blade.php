@@ -1,76 +1,14 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Guru Piket</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-
-<nav class="navbar navbar-dark bg-primary">
-    <div class="container">
-        <span class="navbar-brand fw-bold">Absensi Kelas</span>
-        <form action="{{ route('logout') }}" method="POST">
-            @csrf
-            <button class="btn btn-light btn-sm">Logout</button>
-        </form>
-    </div>
-</nav>
-
-<div class="container py-4">
-
-    <div class="card shadow-sm border-0 mb-4">
-        <div class="card-body">
-            <h3 class="fw-bold mb-1">Dashboard Guru Piket</h3>
-            <p class="text-secondary mb-0">
-                Selamat datang, {{ auth()->user()->name }}!
-            </p>
-        </div>
-    </div>
-
-    <div class="row g-3">
-
-        <div class="col-md-6">
-            <div class="card shadow-sm h-100 border-0">
-                <div class="card-body">
-                    <h5>Kelola Dispensasi</h5>
-                    <p class="text-muted">Buat dan kelola data dispensasi siswa/kelas.</p>
-                    <a href="{{ route('dispensasi.piket') }}" class="btn btn-primary">
-                        Buka Dispensasi
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6">
-            <div class="card shadow-sm h-100 border-0">
-                <div class="card-body">
-                    <h5>Pemeriksaan Pengajuan</h5>
-                    <p class="text-muted">Setujui atau tolak izin/sakit dan alasan keterlambatan.</p>
-                    <a href="{{ route('guru-piket.pemeriksaan') }}" class="btn btn-primary">
-                        Periksa Pengajuan
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6">
-            <div class="card shadow-sm h-100 border-0">
-                <div class="card-body">
-                    <h5>Catatan Ketidakhadiran</h5>
-                    <p class="text-muted">
-                        Lihat laporan ketidakhadiran saat pelajaran dan ambil alih tindak lanjut bila diperlukan.
-                    </p>
-                    <a href="{{ route('guru-piket.catatan') }}" class="btn btn-outline-primary">
-                        Lihat Catatan
-                    </a>
-                </div>
-            </div>
-        </div>
-
-    </div>
+@extends('layouts.app')
+@section('title', 'Dashboard Guru Piket')
+@section('content')
+<div class="smk-card">
+    <h1 class="smk-title">Selamat datang, {{ auth()->user()->name ?? auth()->user()->username }}</h1>
+    <p class="smk-sub">Guru piket</p>
 </div>
-
-</body>
-</html>
+<div class="smk-grid">
+    <a class="smk-menu" href="{{ route('guru-piket.pemeriksaan') }}"><h3>Pemeriksaan</h3><p>Izin, sakit, keterlambatan</p></a>
+    <a class="smk-menu" href="{{ route('dispensasi.piket') }}"><h3>Dispensasi</h3><p>Catat dispensasi</p></a>
+    <a class="smk-menu" href="{{ route('guru-piket.catatan') }}"><h3>Catatan Mapel</h3><p>Tindak lanjut laporan</p></a>
+    <a class="smk-menu" href="{{ route('pengaturan.edit') }}"><h3>Pengaturan</h3><p>Lokasi & jam absensi</p></a>
+</div>
+@endsection

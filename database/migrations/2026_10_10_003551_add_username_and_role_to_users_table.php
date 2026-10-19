@@ -4,21 +4,20 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Migration ini digabung ke create_users_table.
+ * Dibiarkan kosong agar tidak error jika sudah di-run sebelumnya.
+ */
 return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->string('username', 50)->unique();
-            $table->enum('role', ['siswa', 'guru', 'guru_piket']);
-        });
+        // Kolom username, role, dan wajib_ganti_password
+        // sudah didefinisikan di migration create_users_table.
     }
 
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropUnique(['username']);
-            $table->dropColumn(['username', 'role']);
-        });
+        //
     }
 };

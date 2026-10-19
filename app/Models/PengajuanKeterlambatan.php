@@ -13,7 +13,6 @@ class PengajuanKeterlambatan extends Model
         'siswa_id',
         'absensi_id',
         'alasan',
-        'bukti',
         'status',
         'diperiksa_oleh',
         'diperiksa_pada',

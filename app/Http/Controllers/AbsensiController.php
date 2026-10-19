@@ -36,6 +36,29 @@ class AbsensiController extends Controller
         $tanggal = $sekarang->toDateString();
         $siswaId = $user->siswa->id;
 
+        // Batasan jam absen (dari jam_masuk - 1 jam s/d jam_tutup_absen)
+        $jamBuka = Carbon::parse(
+            $tanggal . ' ' . ($pengaturan->jam_masuk ?? '06:30:00'),
+            'Asia/Jakarta'
+        )->subHour();
+
+        $jamTutup = Carbon::parse(
+            $tanggal . ' ' . ($pengaturan->jam_tutup_absen ?? '10:00:00'),
+            'Asia/Jakarta'
+        );
+
+        if ($sekarang->lt($jamBuka)) {
+            return back()->withErrors([
+                'absensi' => 'Belum waktunya absen. Absen dibuka mulai ' . $jamBuka->format('H:i') . '.',
+            ]);
+        }
+
+        if ($sekarang->gt($jamTutup)) {
+            return back()->withErrors([
+                'absensi' => 'Waktu absen sudah ditutup pukul ' . $jamTutup->format('H:i') . '.',
+            ]);
+        }
+
         $latitude = (float) $request->latitude;
         $longitude = (float) $request->longitude;
 
@@ -76,8 +99,8 @@ class AbsensiController extends Controller
             );
 
             $status = $sekarang->gt($batasToleransi)
-                ? 'Terlambat'
-                : 'Hadir';
+                ? 'terlambat'
+                : 'hadir';
 
             return Absensi::create([
                 'siswa_id' => $siswaId,
@@ -102,7 +125,7 @@ class AbsensiController extends Controller
         );
 
         if (
-            $absensi->status === 'Terlambat' &&
+            $absensi->status === 'terlambat' &&
             $sekarang->gte($batasWajibAlasan)
         ) {
             return redirect()

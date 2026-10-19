@@ -15,7 +15,7 @@ class PengajuanIzinSakitController extends Controller
     {
         $siswa = Auth::user()->siswa;
 
-        if (!$siswa) {
+        if (! $siswa) {
             abort(403, 'Data siswa tidak ditemukan.');
         }
 
@@ -30,97 +30,70 @@ class PengajuanIzinSakitController extends Controller
     {
         $siswa = Auth::user()->siswa;
 
-        if (!$siswa) {
+        if (! $siswa) {
             abort(403, 'Data siswa tidak ditemukan.');
         }
 
+        $hariIni = Carbon::now('Asia/Jakarta')->toDateString();
+
         $data = $request->validate([
             'jenis' => ['required', 'in:izin,sakit'],
+            'tanggal' => ['required', 'date', 'after_or_equal:' . $hariIni],
+            'tanggal_selesai' => ['nullable', 'date', 'after_or_equal:tanggal'],
             'alasan' => ['required', 'string', 'max:2000'],
-            'bukti' => [
-                'nullable',
-                'file',
-                'mimes:jpg,jpeg,png,pdf',
-                'max:2048',
-            ],
+            'bukti' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:2048'],
         ], [
             'jenis.required' => 'Pilih jenis pengajuan.',
-            'jenis.in' => 'Jenis pengajuan tidak valid.',
+            'tanggal.required' => 'Tanggal mulai wajib diisi.',
+            'tanggal.after_or_equal' => 'Tanggal tidak boleh sebelum hari ini.',
+            'tanggal_selesai.after_or_equal' => 'Tanggal selesai harus sama atau setelah tanggal mulai.',
             'alasan.required' => 'Alasan wajib diisi.',
-            'alasan.max' => 'Alasan maksimal 2000 karakter.',
-            'bukti.mimes' => 'Bukti harus berupa JPG, PNG, atau PDF.',
+            'bukti.mimes' => 'Bukti harus JPG, PNG, atau PDF.',
             'bukti.max' => 'Ukuran bukti maksimal 2 MB.',
         ]);
 
-        $tanggalHariIni = Carbon::now('Asia/Jakarta')->toDateString();
+        $tanggalMulai = $data['tanggal'];
+        $tanggalSelesai = $data['tanggal_selesai'] ?? $tanggalMulai;
 
-        // Cegah siswa mengajukan izin/sakit lebih dari sekali sehari.
-        $sudahMengajukan = PengajuanIzinSakit::where(
-            'siswa_id',
-            $siswa->id
-        )
-            ->whereDate('tanggal', $tanggalHariIni)
+        // Cek overlap pengajuan aktif (menunggu / disetujui)
+        $overlap = PengajuanIzinSakit::where('siswa_id', $siswa->id)
+            ->whereIn('status', ['menunggu', 'disetujui'])
+            ->where(function ($q) use ($tanggalMulai, $tanggalSelesai) {
+                $q->whereDate('tanggal', '<=', $tanggalSelesai)
+                    ->where(function ($q2) use ($tanggalMulai) {
+                        $q2->whereNull('tanggal_selesai')
+                            ->whereDate('tanggal', '>=', $tanggalMulai)
+                            ->orWhereDate('tanggal_selesai', '>=', $tanggalMulai);
+                    });
+            })
             ->exists();
 
-        if ($sudahMengajukan) {
+        if ($overlap) {
             return back()->withErrors([
-                'pengajuan' => 'Kamu sudah mengajukan izin/sakit hari ini. Pengajuan hanya boleh satu kali sehari.',
+                'pengajuan' => 'Sudah ada pengajuan yang overlap di tanggal tersebut.',
             ])->withInput();
         }
 
         $path = null;
 
         if ($request->hasFile('bukti')) {
-            $path = $request->file('bukti')->store(
-                'bukti-pengajuan',
-                'local'
-            );
+            $path = $request->file('bukti')->store('bukti-pengajuan', 'local');
         }
 
         try {
-            DB::transaction(function () use (
-                $siswa,
-                $data,
-                $tanggalHariIni,
-                $path
-            ) {
-                // Periksa ulang agar tidak melewati batas pengajuan harian.
-                $sudahMengajukan = PengajuanIzinSakit::where(
-                    'siswa_id',
-                    $siswa->id
-                )
-                    ->whereDate('tanggal', $tanggalHariIni)
-                    ->lockForUpdate()
-                    ->exists();
-
-                if ($sudahMengajukan) {
-                    throw new \RuntimeException(
-                        'Kamu sudah mengajukan izin/sakit hari ini.'
-                    );
-                }
-
-                $pengajuan = new PengajuanIzinSakit();
-                $pengajuan->siswa_id = $siswa->id;
-                $pengajuan->tanggal = $tanggalHariIni;
-                $pengajuan->jenis = $data['jenis'];
-                $pengajuan->alasan = $data['alasan'];
-                $pengajuan->bukti = $path;
-                $pengajuan->status = 'menunggu';
-                $pengajuan->save();
-            });
-        } catch (\RuntimeException $e) {
-            if ($path) {
-                Storage::disk('local')->delete($path);
-            }
-
-            return back()->withErrors([
-                'pengajuan' => $e->getMessage(),
-            ])->withInput();
+            PengajuanIzinSakit::create([
+                'siswa_id' => $siswa->id,
+                'tanggal' => $tanggalMulai,
+                'tanggal_selesai' => $tanggalSelesai,
+                'jenis' => $data['jenis'],
+                'alasan' => $data['alasan'],
+                'bukti' => $path,
+                'status' => 'menunggu',
+            ]);
         } catch (\Throwable $e) {
             if ($path) {
                 Storage::disk('local')->delete($path);
             }
-
             throw $e;
         }
 

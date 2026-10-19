@@ -16,6 +16,7 @@ class PengaturanSekolah extends Model
         'jam_masuk',
         'batas_toleransi',
         'batas_wajib_alasan',
+        'jam_tutup_absen',
     ];
 
     protected function casts(): array

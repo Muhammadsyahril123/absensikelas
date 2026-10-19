@@ -56,7 +56,7 @@ class PengajuanKeterlambatanController extends Controller
         // Cari absensi terlambat milik siswa pada tanggal tersebut.
         $absensi = Absensi::where('siswa_id', $siswa->id)
             ->whereDate('tanggal', $data['tanggal'])
-            ->where('status', 'Terlambat')
+            ->where('status', 'terlambat')
             ->first();
 
         if (!$absensi) {

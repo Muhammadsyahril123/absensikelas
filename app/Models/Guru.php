@@ -30,4 +30,10 @@ class Guru extends Model
             'kelas_id'
         )->withPivot('peran')->withTimestamps();
     }
+
+    public function kelasWali(): BelongsToMany
+    {
+        return $this->kelas()
+            ->wherePivot('peran', 'wali_kelas');
+    }
 }

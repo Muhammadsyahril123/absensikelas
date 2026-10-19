@@ -225,8 +225,12 @@ class CatatanAbsensiController extends Controller
             'ditindaklanjuti_at' => Carbon::now('Asia/Jakarta'),
         ]);
 
+        $redirectRoute = $user->role === 'guru_piket'
+            ? 'guru-piket.catatan'
+            : 'catatan.index';
+
         return redirect()
-            ->route('catatan.index', [
+            ->route($redirectRoute, [
                 'tanggal' => $catatan->tanggal->toDateString(),
             ])
             ->with(

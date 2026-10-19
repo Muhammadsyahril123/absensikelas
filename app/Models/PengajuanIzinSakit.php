@@ -12,6 +12,7 @@ class PengajuanIzinSakit extends Model
     protected $fillable = [
         'siswa_id',
         'tanggal',
+        'tanggal_selesai',
         'jenis',
         'alasan',
         'bukti',
@@ -24,6 +25,7 @@ class PengajuanIzinSakit extends Model
     {
         return [
             'tanggal' => 'date',
+            'tanggal_selesai' => 'date',
             'diperiksa_pada' => 'datetime',
         ];
     }

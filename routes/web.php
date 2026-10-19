@@ -1,8 +1,9 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\GantiPasswordController;
+
 use App\Http\Controllers\LoginController;
+use App\Http\Controllers\GantiPasswordController;
 use App\Http\Controllers\AbsensiController;
 use App\Http\Controllers\RiwayatAbsensiController;
 use App\Http\Controllers\RekapAbsensiController;
@@ -12,10 +13,14 @@ use App\Http\Controllers\RekapKelasSiswaController;
 use App\Http\Controllers\DispensasiController;
 use App\Http\Controllers\PemeriksaanPengajuanController;
 use App\Http\Controllers\CatatanAbsensiController;
+use App\Http\Controllers\ResetPasswordSiswaController;
+use App\Http\Controllers\SiswaWaliKelasController;
+use App\Http\Controllers\PengaturanSekolahController;
+use App\Http\Controllers\ImportSiswaController;
 
 /*
 |--------------------------------------------------------------------------
-| Login dan Logout
+| Halaman Utama
 |--------------------------------------------------------------------------
 */
 
@@ -23,21 +28,28 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
-Route::get('/login', [
-    LoginController::class,
-    'create',
-])->name('login');
+/*
+|--------------------------------------------------------------------------
+| Login dan Logout
+|--------------------------------------------------------------------------
+*/
 
-Route::post('/login', [
-    LoginController::class,
-    'store',
-])->name('login.store');
+Route::middleware('guest')->group(function () {
+    Route::get('/login', [
+        LoginController::class,
+        'create',
+    ])->name('login');
+
+    Route::post('/login', [
+        LoginController::class,
+        'store',
+    ])->name('login.store');
+});
 
 Route::post('/logout', [
     LoginController::class,
     'destroy',
 ])->middleware('auth')->name('logout');
-
 
 /*
 |--------------------------------------------------------------------------
@@ -57,7 +69,6 @@ Route::middleware('auth')->group(function () {
     ])->name('password.update');
 });
 
-
 /*
 |--------------------------------------------------------------------------
 | Dashboard Redirect
@@ -75,7 +86,6 @@ Route::get('/dashboard', function () {
     };
 })->middleware('auth')->name('dashboard');
 
-
 /*
 |--------------------------------------------------------------------------
 | Dashboard dan Fitur Siswa
@@ -89,6 +99,7 @@ Route::middleware([
     'wajib.alasan.keterlambatan',
 ])->group(function () {
 
+    // Dashboard Siswa
     Route::get('/dashboard/siswa', function () {
         $siswa = auth()->user()->siswa;
 
@@ -101,13 +112,13 @@ Route::middleware([
         'absen',
     ])->name('absensi.absen');
 
-    // Riwayat absensi
+    // Riwayat Absensi
     Route::get('/absensi/riwayat', [
         RiwayatAbsensiController::class,
         'index',
     ])->name('absensi.riwayat');
 
-    // Pengajuan izin dan sakit
+    // Pengajuan Izin dan Sakit
     Route::get('/pengajuan-izin-sakit', [
         PengajuanIzinSakitController::class,
         'index',
@@ -118,7 +129,7 @@ Route::middleware([
         'store',
     ])->name('pengajuan.store');
 
-    // Pengajuan keterlambatan
+    // Pengajuan Keterlambatan
     Route::get('/pengajuan-keterlambatan', [
         PengajuanKeterlambatanController::class,
         'index',
@@ -129,19 +140,18 @@ Route::middleware([
         'store',
     ])->name('keterlambatan.store');
 
-    // Rekap kelas siswa
+    // Rekap Kehadiran Kelas
     Route::get('/rekap-kelas', [
         RekapKelasSiswaController::class,
         'index',
     ])->name('rekap-kelas.index');
 
-    // Informasi dispensasi
+    // Informasi Dispensasi Siswa
     Route::get('/siswa/dispensasi', [
         DispensasiController::class,
         'siswa',
     ])->name('dispensasi.siswa');
 });
-
 
 /*
 |--------------------------------------------------------------------------
@@ -149,19 +159,38 @@ Route::middleware([
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:guru'])->group(function () {
+Route::middleware([
+    'auth',
+    'role:guru',
+])->group(function () {
 
+    // Dashboard Guru
     Route::get('/dashboard/guru', function () {
         return view('dashboard.guru');
     })->name('dashboard.guru');
 
-    // Rekap absensi seluruh kelas
+    // Rekap Absensi
     Route::get('/rekap-absensi', [
         RekapAbsensiController::class,
         'index',
     ])->name('rekap.index');
 
-    // Informasi dispensasi
+    Route::get('/rekap-absensi/export', [
+        RekapAbsensiController::class,
+        'export',
+    ])->name('rekap.export');
+
+    Route::get('/import-siswa', [
+        ImportSiswaController::class,
+        'index',
+    ])->name('import.siswa');
+
+    Route::post('/import-siswa', [
+        ImportSiswaController::class,
+        'store',
+    ])->name('import.siswa.store');
+
+    // Informasi Dispensasi Guru
     Route::get('/guru/dispensasi', [
         DispensasiController::class,
         'guru',
@@ -169,7 +198,24 @@ Route::middleware(['auth', 'role:guru'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Catatan Ketidakhadiran
+    | Data Siswa Wali Kelas
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/guru-kelas/siswa', [
+        SiswaWaliKelasController::class,
+        'index',
+    ])->name('guru-kelas.siswa.index');
+
+    // Reset Password Siswa oleh Wali Kelas
+    Route::patch('/wali-kelas/siswa/{siswa}/reset-password', [
+        ResetPasswordSiswaController::class,
+        'reset',
+    ])->name('wali-kelas.siswa.reset-password');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Catatan Ketidakhadiran Saat Pelajaran
     |--------------------------------------------------------------------------
     */
 
@@ -188,20 +234,18 @@ Route::middleware(['auth', 'role:guru'])->group(function () {
         'store',
     ])->name('catatan.store');
 
-    // AJAX: mengambil siswa berdasarkan kelas
-    // Harus terdaftar agar form Buat Catatan tidak error.
+    // AJAX: Mengambil Siswa Berdasarkan Kelas
     Route::get('/catatan/siswa-by-kelas', [
         CatatanAbsensiController::class,
         'siswaByKelas',
     ])->name('catatan.siswa-by-kelas');
 
-    // Wali kelas menindaklanjuti laporan
+    // Tindak Lanjut Catatan
     Route::patch('/catatan/{catatan}/tindak-lanjut', [
         CatatanAbsensiController::class,
         'tindakLanjut',
     ])->name('catatan.tindak-lanjut');
 });
-
 
 /*
 |--------------------------------------------------------------------------
@@ -209,13 +253,17 @@ Route::middleware(['auth', 'role:guru'])->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'role:guru_piket'])->group(function () {
+Route::middleware([
+    'auth',
+    'role:guru_piket',
+])->group(function () {
 
+    // Dashboard Guru Piket
     Route::get('/dashboard/guru-piket', function () {
         return view('dashboard.guru_piket');
     })->name('dashboard.guru_piket');
 
-    // Dispensasi
+    // Pengelolaan Dispensasi
     Route::get('/guru-piket/dispensasi', [
         DispensasiController::class,
         'index',
@@ -231,7 +279,7 @@ Route::middleware(['auth', 'role:guru_piket'])->group(function () {
         'destroy',
     ])->name('dispensasi.destroy');
 
-    // Pemeriksaan pengajuan
+    // Pemeriksaan Pengajuan Izin dan Sakit
     Route::get('/guru-piket/pemeriksaan', [
         PemeriksaanPengajuanController::class,
         'index',
@@ -242,20 +290,32 @@ Route::middleware(['auth', 'role:guru_piket'])->group(function () {
         'periksaIzinSakit',
     ])->name('guru-piket.pemeriksaan.izin-sakit');
 
+    // Pemeriksaan Pengajuan Keterlambatan
     Route::patch('/guru-piket/pemeriksaan/keterlambatan/{id}', [
         PemeriksaanPengajuanController::class,
         'periksaKeterlambatan',
     ])->name('guru-piket.pemeriksaan.keterlambatan');
 
-    // Melihat catatan ketidakhadiran
+    // Melihat Catatan Ketidakhadiran
     Route::get('/guru-piket/catatan', [
         CatatanAbsensiController::class,
         'index',
     ])->name('guru-piket.catatan');
 
-    // Menindaklanjuti catatan
+    // Tindak Lanjut Catatan
     Route::patch('/guru-piket/catatan/{catatan}/tindak-lanjut', [
         CatatanAbsensiController::class,
         'tindakLanjut',
     ])->name('guru-piket.catatan.tindak-lanjut');
+
+    // Pengaturan sekolah
+    Route::get('/guru-piket/pengaturan', [
+        PengaturanSekolahController::class,
+        'edit',
+    ])->name('pengaturan.edit');
+
+    Route::put('/guru-piket/pengaturan', [
+        PengaturanSekolahController::class,
+        'update',
+    ])->name('pengaturan.update');
 });

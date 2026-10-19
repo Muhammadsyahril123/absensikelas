@@ -40,7 +40,7 @@ class WajibAlasanKeterlambatan
 
         $absensi = Absensi::where('siswa_id', $user->siswa->id)
             ->whereDate('tanggal', $tanggal)
-            ->where('status', 'Terlambat')
+            ->where('status', 'terlambat')
             ->first();
 
         if (!$absensi) {

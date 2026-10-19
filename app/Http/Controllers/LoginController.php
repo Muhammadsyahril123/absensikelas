@@ -52,7 +52,7 @@ class LoginController extends Controller
 
         return back()
             ->withErrors([
-                'username' => 'Username atau password salah.',
+                'username' => 'NIS/NIP atau password salah.',
             ])
             ->onlyInput('username');
     }

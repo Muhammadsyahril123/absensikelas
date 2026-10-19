@@ -1,314 +1,73 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+@extends('layouts.app')
+@section('title', 'Pemeriksaan')
+@section('content')
+<a href="{{ route('dashboard.guru_piket') }}" class="smk-back">← Kembali</a>
+<h1 class="smk-section-title">Pemeriksaan Pengajuan</h1>
+<p class="smk-section-sub">Izin, sakit, dan alasan keterlambatan.</p>
 
-    <title>Pemeriksaan Pengajuan</title>
-
-    <link
-        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-        rel="stylesheet"
-    >
-</head>
-<body class="bg-light">
-
-<div class="container py-4">
-
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h3 class="mb-1">Pemeriksaan Pengajuan</h3>
-            <p class="text-muted mb-0">
-                Pengelolaan izin, sakit, dan keterlambatan siswa.
-            </p>
-        </div>
-
-        <a
-            href="{{ route('dashboard.guru_piket') }}"
-            class="btn btn-outline-secondary"
-        >
-            Kembali
-        </a>
+<h2 class="smk-section-title" style="font-size:1rem;margin-top:0.5rem">Izin &amp; Sakit</h2>
+@forelse($pengajuanIzinSakit as $item)
+<div class="smk-card" style="margin-bottom:0.75rem">
+    <strong>{{ $item->siswa->nama ?? '-' }}</strong>
+    <span style="color:#64748b;font-size:0.85rem"> · {{ $item->siswa->kelas->nama_kelas ?? '-' }}</span>
+    <div style="font-size:0.85rem;color:#64748b;margin:0.35rem 0">
+        {{ $item->jenis }} ·
+        {{ $item->tanggal?->format('d-m-Y') }}
+        @if($item->tanggal_selesai && $item->tanggal_selesai->ne($item->tanggal))
+            – {{ $item->tanggal_selesai->format('d-m-Y') }}
+        @endif
     </div>
-
-    @if (session('success'))
-        <div class="alert alert-success">
-            {{ session('success') }}
-        </div>
+    <p style="margin:0 0 0.5rem;font-size:0.9rem">{{ $item->alasan }}</p>
+    @if($item->bukti)
+        <p style="font-size:0.8rem"><a href="{{ asset('storage/'.$item->bukti) }}" target="_blank">Lihat bukti</a></p>
     @endif
-
-    @if (session('error'))
-        <div class="alert alert-danger">
-            {{ session('error') }}
-        </div>
-    @endif
-
-    @if ($errors->any())
-        <div class="alert alert-danger">
-            <ul class="mb-0">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
-    {{-- IZIN DAN SAKIT --}}
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">Pengajuan Izin dan Sakit</h5>
-        </div>
-
-        <div class="card-body">
-            @forelse ($pengajuanIzinSakit as $item)
-                <div class="border rounded p-3 mb-3">
-
-                    <div class="d-flex justify-content-between flex-wrap gap-2">
-                        <div>
-                            <h6 class="mb-1">
-                                {{ $item->siswa->nama ?? 'Siswa tidak ditemukan' }}
-                            </h6>
-
-                            <div class="text-muted small">
-                                Kelas:
-                                {{ $item->siswa->kelas->nama_kelas ?? '-' }}
-                            </div>
-
-                            <div class="text-muted small">
-                                Tanggal:
-                                {{ $item->tanggal?->format('d-m-Y') ?? '-' }}
-                            </div>
-                        </div>
-
-                        <div>
-                            <span class="badge
-                                @if ($item->status === 'menunggu')
-                                    bg-warning text-dark
-                                @elseif ($item->status === 'disetujui')
-                                    bg-success
-                                @else
-                                    bg-danger
-                                @endif
-                            ">
-                                {{ ucfirst($item->status) }}
-                            </span>
-                        </div>
-                    </div>
-
-                    <hr>
-
-                    <p class="mb-1">
-                        <strong>Jenis:</strong>
-                        {{ ucfirst($item->jenis) }}
-                    </p>
-
-                    <p class="mb-2">
-                        <strong>Alasan:</strong>
-                        {{ $item->alasan }}
-                    </p>
-
-                    @if ($item->bukti)
-                        <p class="mb-2">
-                            <strong>Bukti:</strong>
-                            <a
-                                href="{{ asset('storage/' . $item->bukti) }}"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                Lihat bukti
-                            </a>
-                        </p>
-                    @endif
-
-                    @if ($item->status === 'menunggu')
-                        <div class="d-flex gap-2 flex-wrap">
-
-                            <form
-                                action="{{ route('guru-piket.pemeriksaan.izin-sakit', $item->id) }}"
-                                method="POST"
-                            >
-                                @csrf
-                                @method('PATCH')
-
-                                <input
-                                    type="hidden"
-                                    name="status"
-                                    value="disetujui"
-                                >
-
-                                <button class="btn btn-success btn-sm">
-                                    Setujui
-                                </button>
-                            </form>
-
-                            <form
-                                action="{{ route('guru-piket.pemeriksaan.izin-sakit', $item->id) }}"
-                                method="POST"
-                                onsubmit="return confirm('Tolak pengajuan ini?')"
-                            >
-                                @csrf
-                                @method('PATCH')
-
-                                <input
-                                    type="hidden"
-                                    name="status"
-                                    value="ditolak"
-                                >
-
-                                <button class="btn btn-danger btn-sm">
-                                    Tolak
-                                </button>
-                            </form>
-
-                        </div>
-                    @else
-                        <div class="small text-muted">
-                            Diperiksa oleh:
-                            {{ $item->pemeriksa->name ?? '-' }}
-
-                            @if ($item->diperiksa_pada)
-                                <br>
-                                Waktu pemeriksaan:
-                                {{ $item->diperiksa_pada->format('d-m-Y H:i') }}
-                            @endif
-                        </div>
-                    @endif
-
-                </div>
-            @empty
-                <p class="text-muted mb-0">
-                    Belum ada pengajuan izin atau sakit.
-                </p>
-            @endforelse
-        </div>
+    <span class="smk-badge {{ $item->status==='disetujui'?'smk-badge-success':($item->status==='ditolak'?'smk-badge-danger':'smk-badge-warning') }}">{{ $item->status }}</span>
+    @if($item->status==='menunggu')
+    <div style="display:flex;gap:0.5rem;margin-top:0.65rem;flex-wrap:wrap">
+        <form method="POST" action="{{ route('guru-piket.pemeriksaan.izin-sakit', $item->id) }}">
+            @csrf @method('PATCH')
+            <input type="hidden" name="status" value="disetujui">
+            <button class="smk-btn smk-btn-success" style="padding:0.4rem 0.8rem;font-size:0.8rem">Setujui</button>
+        </form>
+        <form method="POST" action="{{ route('guru-piket.pemeriksaan.izin-sakit', $item->id) }}" onsubmit="return confirm('Tolak?')">
+            @csrf @method('PATCH')
+            <input type="hidden" name="status" value="ditolak">
+            <button class="smk-btn smk-btn-danger" style="padding:0.4rem 0.8rem;font-size:0.8rem">Tolak</button>
+        </form>
     </div>
-
-    {{-- KETERLAMBATAN --}}
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-dark text-white">
-            <h5 class="mb-0">Pengajuan Keterlambatan</h5>
-        </div>
-
-        <div class="card-body">
-            @forelse ($pengajuanKeterlambatan as $item)
-                <div class="border rounded p-3 mb-3">
-
-                    <div class="d-flex justify-content-between flex-wrap gap-2">
-                        <div>
-                            <h6 class="mb-1">
-                                {{ $item->siswa->nama ?? 'Siswa tidak ditemukan' }}
-                            </h6>
-
-                            <div class="text-muted small">
-                                Kelas:
-                                {{ $item->siswa->kelas->nama_kelas ?? '-' }}
-                            </div>
-
-                            <div class="text-muted small">
-                                Tanggal:
-                                {{ $item->absensi?->tanggal
-                                    ? \Illuminate\Support\Carbon::parse($item->absensi->tanggal)->format('d-m-Y')
-                                    : '-' }}
-                            </div>
-                        </div>
-
-                        <span class="badge
-                            @if ($item->status === 'menunggu')
-                                bg-warning text-dark
-                            @elseif ($item->status === 'disetujui')
-                                bg-success
-                            @else
-                                bg-danger
-                            @endif
-                        ">
-                            {{ ucfirst($item->status) }}
-                        </span>
-                    </div>
-
-                    <hr>
-
-                    <p class="mb-2">
-                        <strong>Alasan:</strong>
-                        {{ $item->alasan }}
-                    </p>
-
-                    @if ($item->bukti)
-                        <p class="mb-2">
-                            <strong>Bukti:</strong>
-                            <a
-                                href="{{ asset('storage/' . $item->bukti) }}"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                Lihat bukti
-                            </a>
-                        </p>
-                    @endif
-
-                    @if ($item->status === 'menunggu')
-                        <div class="d-flex gap-2 flex-wrap">
-
-                            <form
-                                action="{{ route('guru-piket.pemeriksaan.keterlambatan', $item->id) }}"
-                                method="POST"
-                            >
-                                @csrf
-                                @method('PATCH')
-
-                                <input
-                                    type="hidden"
-                                    name="status"
-                                    value="disetujui"
-                                >
-
-                                <button class="btn btn-success btn-sm">
-                                    Setujui
-                                </button>
-                            </form>
-
-                            <form
-                                action="{{ route('guru-piket.pemeriksaan.keterlambatan', $item->id) }}"
-                                method="POST"
-                                onsubmit="return confirm('Tolak pengajuan ini?')"
-                            >
-                                @csrf
-                                @method('PATCH')
-
-                                <input
-                                    type="hidden"
-                                    name="status"
-                                    value="ditolak"
-                                >
-
-                                <button class="btn btn-danger btn-sm">
-                                    Tolak
-                                </button>
-                            </form>
-
-                        </div>
-                    @else
-                        <div class="small text-muted">
-                            Diperiksa oleh:
-                            {{ $item->pemeriksa->name ?? '-' }}
-
-                            @if ($item->diperiksa_pada)
-                                <br>
-                                Waktu pemeriksaan:
-                                {{ $item->diperiksa_pada->format('d-m-Y H:i') }}
-                            @endif
-                        </div>
-                    @endif
-
-                </div>
-            @empty
-                <p class="text-muted mb-0">
-                    Belum ada pengajuan keterlambatan.
-                </p>
-            @endforelse
-        </div>
-    </div>
-
+    @endif
 </div>
+@empty
+<div class="smk-alert smk-alert-info">Tidak ada pengajuan izin/sakit.</div>
+@endforelse
 
-</body>
-</html>
+<h2 class="smk-section-title" style="font-size:1rem;margin-top:1.25rem">Keterlambatan</h2>
+@forelse($pengajuanKeterlambatan as $item)
+<div class="smk-card" style="margin-bottom:0.75rem">
+    <strong>{{ $item->siswa->nama ?? '-' }}</strong>
+    <span style="color:#64748b;font-size:0.85rem"> · {{ $item->siswa->kelas->nama_kelas ?? '-' }}</span>
+    <div style="font-size:0.85rem;color:#64748b;margin:0.35rem 0">
+        Tanggal absensi:
+        {{ $item->absensi?->tanggal ? \Carbon\Carbon::parse($item->absensi->tanggal)->format('d-m-Y') : '-' }}
+    </div>
+    <p style="margin:0 0 0.5rem;font-size:0.9rem">{{ $item->alasan }}</p>
+    <span class="smk-badge {{ $item->status==='disetujui'?'smk-badge-success':($item->status==='ditolak'?'smk-badge-danger':'smk-badge-warning') }}">{{ $item->status }}</span>
+    @if($item->status==='menunggu')
+    <div style="display:flex;gap:0.5rem;margin-top:0.65rem;flex-wrap:wrap">
+        <form method="POST" action="{{ route('guru-piket.pemeriksaan.keterlambatan', $item->id) }}">
+            @csrf @method('PATCH')
+            <input type="hidden" name="status" value="disetujui">
+            <button class="smk-btn smk-btn-success" style="padding:0.4rem 0.8rem;font-size:0.8rem">Setujui</button>
+        </form>
+        <form method="POST" action="{{ route('guru-piket.pemeriksaan.keterlambatan', $item->id) }}" onsubmit="return confirm('Tolak?')">
+            @csrf @method('PATCH')
+            <input type="hidden" name="status" value="ditolak">
+            <button class="smk-btn smk-btn-danger" style="padding:0.4rem 0.8rem;font-size:0.8rem">Tolak</button>
+        </form>
+    </div>
+    @endif
+</div>
+@empty
+<div class="smk-alert smk-alert-info">Tidak ada pengajuan keterlambatan.</div>
+@endforelse
+@endsection

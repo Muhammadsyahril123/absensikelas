@@ -3,41 +3,31 @@
 namespace App\Http\Controllers;
 
 use App\Models\Absensi;
-use App\Models\Kelas;
 use App\Models\Siswa;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Carbon;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class RekapAbsensiController extends Controller
 {
     public function index(Request $request)
     {
-        // Pastikan pengguna sudah login sebagai guru.
         $user = Auth::user();
 
-        abort_unless(
-            $user && $user->role === 'guru',
-            403,
-            'Anda tidak memiliki akses ke halaman ini.'
-        );
+        abort_unless($user->role === 'guru' && $user->guru, 403);
 
-        // Validasi filter tanggal dan kelas.
         $request->validate([
-            'tanggal' => ['nullable', 'date', 'before_or_equal:today'],
+            'tanggal' => ['nullable', 'date'],
             'kelas_id' => ['nullable', 'integer', 'exists:kelas,id'],
         ]);
 
-        // Tanggal default adalah hari ini.
         $tanggal = $request->input(
             'tanggal',
             now('Asia/Jakarta')->toDateString()
         );
 
-        // Ambil SEMUA kelas dari database.
-        $daftarKelas = Kelas::orderBy('nama_kelas')->get();
+        $daftarKelas = $user->guru->kelas()->orderBy('nama_kelas')->get();
 
-        // Jika belum ada kelas.
         if ($daftarKelas->isEmpty()) {
             return view('rekap.index', [
                 'daftarKelas' => $daftarKelas,
@@ -51,81 +41,96 @@ class RekapAbsensiController extends Controller
             ]);
         }
 
-        // Pilih kelas berdasarkan filter atau kelas pertama.
-        $kelasId = $request->input(
-            'kelas_id',
-            $daftarKelas->first()->id
-        );
+        $kelasId = $request->input('kelas_id', $daftarKelas->first()->id);
+        $kelasTerpilih = $daftarKelas->firstWhere('id', (int) $kelasId);
 
-        $kelasTerpilih = $daftarKelas->firstWhere(
-            'id',
-            (int) $kelasId
-        );
-
-        // Pastikan kelas pilihan tersedia.
-        if (!$kelasTerpilih) {
+        if (! $kelasTerpilih) {
             return redirect()
                 ->route('rekap.index')
                 ->with('error', 'Kelas yang dipilih tidak ditemukan.');
         }
 
-        // Ambil seluruh siswa dari kelas terpilih.
-        $daftarSiswa = Siswa::where(
-            'kelas_id',
-            $kelasTerpilih->id
-        )
-            ->orderBy('nama')
-            ->get();
+        $data = $this->buildRekap($kelasTerpilih->id, $tanggal);
 
-        // Ambil absensi berdasarkan tanggal dan siswa kelas tersebut.
-        $dataAbsensi = Absensi::whereIn(
-            'siswa_id',
-            $daftarSiswa->pluck('id')
-        )
+        return view('rekap.index', array_merge($data, [
+            'daftarKelas' => $daftarKelas,
+            'kelasTerpilih' => $kelasTerpilih,
+            'tanggal' => $tanggal,
+        ]));
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $user = Auth::user();
+        abort_unless($user->role === 'guru' && $user->guru, 403);
+
+        $request->validate([
+            'tanggal' => ['required', 'date'],
+            'kelas_id' => ['required', 'integer', 'exists:kelas,id'],
+        ]);
+
+        $kelasId = (int) $request->kelas_id;
+        $punyaAkses = $user->guru->kelas()->where('kelas.id', $kelasId)->exists();
+        abort_unless($punyaAkses, 403);
+
+        $tanggal = $request->tanggal;
+        $data = $this->buildRekap($kelasId, $tanggal);
+        $namaKelas = $user->guru->kelas()->where('kelas.id', $kelasId)->first()?->nama_kelas ?? 'kelas';
+
+        $filename = 'rekap-' . str_replace(' ', '-', strtolower($namaKelas)) . '-' . $tanggal . '.csv';
+
+        return response()->streamDownload(function () use ($data, $tanggal, $namaKelas) {
+            $out = fopen('php://output', 'w');
+            fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF)); // BOM Excel
+            fputcsv($out, ['Rekap Absensi', $namaKelas, $tanggal]);
+            fputcsv($out, ['NIS', 'Nama', 'Waktu Absen', 'Status']);
+
+            foreach ($data['siswaRekap'] as $s) {
+                fputcsv($out, [
+                    $s['nis'],
+                    $s['nama'],
+                    $s['waktu_absen'] ?? '-',
+                    $s['status'],
+                ]);
+            }
+
+            fputcsv($out, []);
+            fputcsv($out, ['Total siswa', $data['jumlahSiswa']]);
+            fputcsv($out, ['Hadir', $data['jumlahHadir']]);
+            fputcsv($out, ['Terlambat', $data['jumlahTerlambat']]);
+            fputcsv($out, ['Belum absen', $data['jumlahBelumAbsen']]);
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    private function buildRekap(int $kelasId, string $tanggal): array
+    {
+        $daftarSiswa = Siswa::where('kelas_id', $kelasId)->orderBy('nama')->get();
+
+        $dataAbsensi = Absensi::whereIn('siswa_id', $daftarSiswa->pluck('id'))
             ->whereDate('tanggal', $tanggal)
             ->get()
             ->keyBy('siswa_id');
 
-        // Gabungkan data siswa dengan data absensi.
-        $siswaRekap = $daftarSiswa->map(
-            function ($siswa) use ($dataAbsensi) {
-                $absensi = $dataAbsensi->get($siswa->id);
+        $siswaRekap = $daftarSiswa->map(function ($siswa) use ($dataAbsensi) {
+            $absensi = $dataAbsensi->get($siswa->id);
 
-                $status = $absensi?->status ?? 'Belum Absen';
+            return [
+                'nama' => $siswa->nama,
+                'nis' => $siswa->nis,
+                'waktu_absen' => $absensi?->waktu_absen,
+                'status' => $absensi?->status ?? 'Belum Absen',
+            ];
+        });
 
-                return [
-                    'nama' => $siswa->nama,
-                    'nis' => $siswa->nis,
-                    'waktu_absen' => $absensi?->waktu_absen,
-                    'status' => $status,
-                ];
-            }
-        );
-
-        // Hitung ringkasan absensi.
-        $jumlahSiswa = $siswaRekap->count();
-
-        $jumlahHadir = $siswaRekap->filter(
-            fn ($siswa) => strtolower(trim($siswa['status'])) === 'hadir'
-        )->count();
-
-        $jumlahTerlambat = $siswaRekap->filter(
-            fn ($siswa) => strtolower(trim($siswa['status'])) === 'terlambat'
-        )->count();
-
-        $jumlahBelumAbsen = $siswaRekap->filter(
-            fn ($siswa) => strtolower(trim($siswa['status'])) === 'belum absen'
-        )->count();
-
-        return view('rekap.index', compact(
-            'daftarKelas',
-            'kelasTerpilih',
-            'tanggal',
-            'siswaRekap',
-            'jumlahSiswa',
-            'jumlahHadir',
-            'jumlahTerlambat',
-            'jumlahBelumAbsen'
-        ));
+        return [
+            'siswaRekap' => $siswaRekap,
+            'jumlahSiswa' => $siswaRekap->count(),
+            'jumlahHadir' => $siswaRekap->filter(fn ($s) => strtolower(trim($s['status'])) === 'hadir')->count(),
+            'jumlahTerlambat' => $siswaRekap->filter(fn ($s) => strtolower(trim($s['status'])) === 'terlambat')->count(),
+            'jumlahBelumAbsen' => $siswaRekap->filter(fn ($s) => strtolower(trim($s['status'])) === 'belum absen')->count(),
+        ];
     }
 }
