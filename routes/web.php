@@ -102,8 +102,14 @@ Route::middleware([
     // Dashboard Siswa
     Route::get('/dashboard/siswa', function () {
         $siswa = auth()->user()->siswa;
+        $absenHariIni = null;
+        if ($siswa) {
+            $absenHariIni = \App\Models\Absensi::where('siswa_id', $siswa->id)
+                ->whereDate('tanggal', now('Asia/Jakarta')->toDateString())
+                ->first();
+        }
 
-        return view('dashboard.siswa', compact('siswa'));
+        return view('dashboard.siswa', compact('siswa', 'absenHariIni'));
     })->name('dashboard.siswa');
 
     // Absensi GPS

@@ -108,29 +108,68 @@ class RekapAbsensiController extends Controller
     private function buildRekap(int $kelasId, string $tanggal): array
     {
         $daftarSiswa = Siswa::where('kelas_id', $kelasId)->orderBy('nama')->get();
+        $ids = $daftarSiswa->pluck('id');
 
-        $dataAbsensi = Absensi::whereIn('siswa_id', $daftarSiswa->pluck('id'))
+        $dataAbsensi = Absensi::whereIn('siswa_id', $ids)
             ->whereDate('tanggal', $tanggal)
             ->get()
             ->keyBy('siswa_id');
 
-        $siswaRekap = $daftarSiswa->map(function ($siswa) use ($dataAbsensi) {
+        $izinDisetujui = \App\Models\PengajuanIzinSakit::whereIn('siswa_id', $ids)
+            ->where('status', 'disetujui')
+            ->whereDate('tanggal', '<=', $tanggal)
+            ->where(function ($q) use ($tanggal) {
+                $q->where(function ($q2) use ($tanggal) {
+                    $q2->whereNull('tanggal_selesai')->whereDate('tanggal', $tanggal);
+                })->orWhere(function ($q2) use ($tanggal) {
+                    $q2->whereNotNull('tanggal_selesai')
+                        ->whereDate('tanggal', '<=', $tanggal)
+                        ->whereDate('tanggal_selesai', '>=', $tanggal);
+                });
+            })
+            ->get()
+            ->keyBy('siswa_id');
+
+        $pengaturan = \App\Models\PengaturanSekolah::first();
+        $sekarang = now('Asia/Jakarta');
+        $hariIni = $sekarang->toDateString();
+        $jamTutup = $pengaturan
+            ? \Carbon\Carbon::parse($tanggal . ' ' . ($pengaturan->jam_tutup_absen ?? '10:00:00'), 'Asia/Jakarta')
+            : \Carbon\Carbon::parse($tanggal . ' 10:00:00', 'Asia/Jakarta');
+
+        // Untuk tanggal lampau, atau hari ini setelah jam tutup → belum absen + tanpa izin = Alfa
+        $anggapAlfa = $tanggal < $hariIni || ($tanggal === $hariIni && $sekarang->gte($jamTutup));
+
+        $siswaRekap = $daftarSiswa->map(function ($siswa) use ($dataAbsensi, $izinDisetujui, $anggapAlfa) {
             $absensi = $dataAbsensi->get($siswa->id);
+            $izin = $izinDisetujui->get($siswa->id);
+
+            if ($absensi) {
+                $status = $absensi->status; // hadir / terlambat
+            } elseif ($izin) {
+                $status = 'izin';
+            } elseif ($anggapAlfa) {
+                $status = 'alfa';
+            } else {
+                $status = 'belum';
+            }
 
             return [
                 'nama' => $siswa->nama,
                 'nis' => $siswa->nis,
                 'waktu_absen' => $absensi?->waktu_absen,
-                'status' => $absensi?->status ?? 'Belum Absen',
+                'status' => $status,
             ];
         });
 
         return [
             'siswaRekap' => $siswaRekap,
             'jumlahSiswa' => $siswaRekap->count(),
-            'jumlahHadir' => $siswaRekap->filter(fn ($s) => strtolower(trim($s['status'])) === 'hadir')->count(),
-            'jumlahTerlambat' => $siswaRekap->filter(fn ($s) => strtolower(trim($s['status'])) === 'terlambat')->count(),
-            'jumlahBelumAbsen' => $siswaRekap->filter(fn ($s) => strtolower(trim($s['status'])) === 'belum absen')->count(),
+            'jumlahHadir' => $siswaRekap->filter(fn ($s) => $s['status'] === 'hadir')->count(),
+            'jumlahTerlambat' => $siswaRekap->filter(fn ($s) => $s['status'] === 'terlambat')->count(),
+            'jumlahIzin' => $siswaRekap->filter(fn ($s) => $s['status'] === 'izin')->count(),
+            'jumlahAlfa' => $siswaRekap->filter(fn ($s) => $s['status'] === 'alfa')->count(),
+            'jumlahBelumAbsen' => $siswaRekap->filter(fn ($s) => $s['status'] === 'belum')->count(),
         ];
     }
 }

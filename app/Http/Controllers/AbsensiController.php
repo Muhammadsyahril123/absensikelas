@@ -71,7 +71,7 @@ class AbsensiController extends Controller
 
         if ($jarak > (float) $pengaturan->radius_meter) {
             return back()->withErrors([
-                'absensi' => 'Lu berada di luar area sekolah.',
+                'absensi' => 'Anda berada di luar area sekolah.',
             ]);
         }
 
@@ -115,30 +115,15 @@ class AbsensiController extends Controller
 
         if (!$absensi) {
             return back()->withErrors([
-                'absensi' => 'Lu sudah melakukan absensi hari ini.',
+                'absensi' => 'Anda sudah melakukan absensi hari ini.',
             ]);
         }
 
-        $batasWajibAlasan = Carbon::parse(
-            $tanggal . ' ' . $pengaturan->batas_wajib_alasan,
-            'Asia/Jakarta'
-        );
-
-        if (
-            $absensi->status === 'terlambat' &&
-            $sekarang->gte($batasWajibAlasan)
-        ) {
-            return redirect()
-                ->route('keterlambatan.index')
-                ->with(
-                    'wajib_alasan',
-                    'Lu terlambat setelah batas waktu. Segera isi alasan keterlambatan.'
-                );
-        }
-
+        // Status terlambat sudah tercatat di absensi.
+        // Tidak perlu pengajuan/konfirmasi di web — penanganan di sekolah oleh guru piket.
         return back()->with(
             'success',
-            'Absensi berhasil! Status: ' . $absensi->status
+            'Absensi berhasil. Status: ' . $absensi->status
         );
     }
 

@@ -2,30 +2,45 @@
 (function () {
   var btn = document.getElementById('btn-absen');
   if (!btn) return;
+
   var form = document.getElementById('form-absen');
   var status = document.getElementById('absen-status');
+  var latInput = document.getElementById('latitude');
+  var lngInput = document.getElementById('longitude');
+
+  function setStatus(msg) {
+    if (status) status.textContent = msg;
+  }
 
   btn.addEventListener('click', function () {
     if (!navigator.geolocation) {
-      if (status) status.textContent = 'Peramban tidak mendukung lokasi.';
+      setStatus('Peramban tidak mendukung layanan lokasi.');
       return;
     }
+
     btn.disabled = true;
-    if (status) status.textContent = 'Mengambil lokasi...';
+    setStatus('Mengambil lokasi... (izinkan akses lokasi jika diminta)');
+
     navigator.geolocation.getCurrentPosition(
       function (pos) {
-        document.getElementById('latitude').value = pos.coords.latitude;
-        document.getElementById('longitude').value = pos.coords.longitude;
-        if (status) status.textContent = 'Mengirim absensi...';
+        if (latInput) latInput.value = pos.coords.latitude;
+        if (lngInput) lngInput.value = pos.coords.longitude;
+        setStatus('Lokasi didapat. Mengirim absensi...');
         form.submit();
       },
       function (err) {
         btn.disabled = false;
-        if (!status) return;
-        if (err.code === 1) status.textContent = 'Izin lokasi ditolak.';
-        else status.textContent = 'Gagal mengambil lokasi.';
+        if (err.code === 1) {
+          setStatus('Izin lokasi ditolak. Izinkan lokasi di pengaturan peramban, lalu coba lagi.');
+        } else if (err.code === 2) {
+          setStatus('Lokasi tidak tersedia. Pastikan GPS aktif.');
+        } else if (err.code === 3) {
+          setStatus('Waktu menunggu lokasi habis. Coba lagi.');
+        } else {
+          setStatus('Gagal mengambil lokasi. Coba lagi.');
+        }
       },
-      { enableHighAccuracy: false, timeout: 30000, maximumAge: 60000 }
+      { enableHighAccuracy: false, timeout: 25000, maximumAge: 60000 }
     );
   });
 })();
